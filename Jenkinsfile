@@ -16,6 +16,7 @@ pipeline {
         DOCKER_REGISTRY = "sihasaneshubham"
         DOCKER_IMAGE_NAME = "${DOCKER_REGISTRY}" + "/" + "${APP_NAME}"
         IMAGE_TAG = "${RELEASE}-${BUILD_NUMBER}"
+        JENKINS_API_TOKEN = credentials("JENKINS_API_TOKEN")
     }
 
     stages {
@@ -80,6 +81,13 @@ pipeline {
                     docker rmi ${DOCKER_IMAGE_NAME}:${IMAGE_TAG}
                     docker rmi ${DOCKER_IMAGE_NAME}:latest
                 """
+            }
+        }
+        stage('Trigger Release Pipeline'){
+            steps {
+                script {
+                    sh "curl -v -k --user shubhamsihasane:${JENKINS_API_TOKEN} -X POST -H 'cache-control: no-cache' -H 'content-type: application/x-www-form-urlencoded' --data 'IMAGE_TAG=${IMAGE_TAG}' 'http://68.183.80.165:8080/job/ReleasePipeline/buildWithParameters?token=gitops-token'"
+                }
             }
         }
 
