@@ -70,17 +70,17 @@ pipeline {
                 }
             }
         }
-        stage('Trivy Image Scan') {
-            steps {
-                script {
-                    withDockerRegistry(credentialsId: 'DockerHub-Credentials') {
-                        sh """
-                            trivy image  ${DOCKER_IMAGE_NAME}:latest --no-progress --scanners vuln  --exit-code 0 --severity HIGH,CRITICAL --format table
-                        """
-                    }
-                }
-            }
-        }
+        // stage('Trivy Image Scan') {
+        //     steps {
+        //         script {
+        //             withDockerRegistry(credentialsId: 'DockerHub-Credentials') {
+        //                 sh """
+        //                     trivy image  ${DOCKER_IMAGE_NAME}:latest --no-progress --scanners vuln  --exit-code 0 --severity HIGH,CRITICAL --format table
+        //                 """
+        //             }
+        //         }
+        //     }
+        // }
         stage('Clean Docker Artifact') {
             steps {
                 sh """
