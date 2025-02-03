@@ -72,7 +72,13 @@ pipeline {
         }
         stage('Trivy Image Scan') {
             steps {
-                sh "trivy image  ${DOCKER_IMAGE_NAME}:latest --no-progress --scanners vuln  --exit-code 0 --severity HIGH,CRITICAL --format table"
+                script {
+                    withDockerRegistry(credentialsId: 'DockerHub-Credentials') {
+                        sh """
+                            trivy image  ${DOCKER_IMAGE_NAME}:latest --no-progress --scanners vuln  --exit-code 0 --severity HIGH,CRITICAL --format table
+                        """
+                    }
+                }
             }
         }
         stage('Clean Docker Artifact') {
