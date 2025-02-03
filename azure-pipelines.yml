@@ -10,13 +10,14 @@ pool:
   name: AzureDevOpsPool
 
 steps:
-- task: Maven@3
+- task: Maven@4
   inputs:
+    azureSubscription: 'Pay-As-You-Go(47a32a55-739a-422b-8b12-4d633cc5cec9)'
     mavenPomFile: 'pom.xml'
-    mavenOptions: '-Xmx3072m'
-    javaHomeOption: 'JDKVersion'
-    jdkVersionOption: '17'
-    jdkArchitectureOption: 'x64'
     publishJUnitResults: true
     testResultsFiles: '**/surefire-reports/TEST-*.xml'
-    goals: 'package'
+    javaHomeOption: 'JDKVersion'
+    mavenVersionOption: 'Default'
+    mavenAuthenticateFeed: false
+    effectivePomSkip: false
+    sonarQubeRunAnalysis: false
