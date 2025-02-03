@@ -1,115 +1,96 @@
 pipeline {
-    agent { label 'Jenkins-Agent' }
+
+    agent {
+        label 'Jenkins-Agent-1'
+    }
+
     tools {
-        jdk 'Java17'
+        jdk 'JDK17'
         maven 'Maven3'
     }
+
     environment {
-	    APP_NAME = "register-app-pipeline"
-            RELEASE = "1.0.0"
-            DOCKER_USER = "ashfaque9x"
-            DOCKER_PASS = 'dockerhub'
-            IMAGE_NAME = "${DOCKER_USER}" + "/" + "${APP_NAME}"
-            IMAGE_TAG = "${RELEASE}-${BUILD_NUMBER}"
-	    JENKINS_API_TOKEN = credentials("JENKINS_API_TOKEN")
+        SCANNER_HOME = tool 'SonarQube-Scanner'
+        APP_NAME = "register-app"
+        RELEASE = "1.0.0"
+        DOCKER_REGISTRY = "sihasaneshubham"
+        DOCKER_IMAGE_NAME = "${DOCKER_REGISTRY}" + "/" + "${APP_NAME}"
+        IMAGE_TAG = "${RELEASE}-${BUILD_NUMBER}"
+        JENKINS_API_TOKEN = credentials("JENKINS_API_TOKEN")
     }
-    stages{
-        stage("Cleanup Workspace"){
-                steps {
+
+    stages {
+
+        stage('Clean Workspace'){
+            steps {
                 cleanWs()
-                }
+            }
         }
-
-        stage("Checkout from SCM"){
-                steps {
-                    git branch: 'main', credentialsId: 'github', url: 'https://github.com/Ashfaque-9x/register-app'
-                }
-        }
-
-        stage("Build Application"){
+        stage('Git Clone'){
             steps {
-                sh "mvn clean package"
+                git branch: 'main', credentialsId: 'GitHub-Credentials', url: 'https://github.com/shubham-sihasane/register-app.git'
             }
-
-       }
-
-       stage("Test Application"){
-           steps {
-                 sh "mvn test"
-           }
-       }
-
-       stage("SonarQube Analysis"){
-           steps {
-	           script {
-		        withSonarQubeEnv(credentialsId: 'jenkins-sonarqube-token') { 
-                        sh "mvn sonar:sonar"
-		        }
-	           }	
-           }
-       }
-
-       stage("Quality Gate"){
-           steps {
-               script {
-                    waitForQualityGate abortPipeline: false, credentialsId: 'jenkins-sonarqube-token'
-                }	
-            }
-
         }
-
-        stage("Build & Push Docker Image") {
+        stage('Build Application'){
+            steps {
+                sh 'mvn clean package'
+            }
+        }
+        stage('Test Application'){
+            steps {
+                sh 'mvn test'
+            }
+        }
+        stage('SonarQube Analysis'){
+            steps {
+                withSonarQubeEnv('Sonar-Server') {
+                    sh '''
+                        $SCANNER_HOME/bin/sonar-scanner -Dsonar.projectName=RegisterApp -Dsonar.projectKey=RegisterAppKey -Dsonar.java.binaries=.
+                        echo $SCANNER_HOME
+                    '''
+                }
+            }
+        }
+        stage('SonarQube Quality Gate'){
+            steps {
+                timeout(time: 1, unit: 'HOURS') {
+                    waitForQualityGate abortPipeline: true
+                }
+            }
+        }
+        stage('Docker Build & Push'){
             steps {
                 script {
-                    docker.withRegistry('',DOCKER_PASS) {
-                        docker_image = docker.build "${IMAGE_NAME}"
-                    }
-
-                    docker.withRegistry('',DOCKER_PASS) {
-                        docker_image.push("${IMAGE_TAG}")
-                        docker_image.push('latest')
+                    withDockerRegistry(credentialsId: 'DockerHub-Credentials') {
+                        sh """
+                            docker build -t ${DOCKER_IMAGE_NAME}:${IMAGE_TAG} .
+                            docker push ${DOCKER_IMAGE_NAME}:${IMAGE_TAG}
+                        """
                     }
                 }
             }
-
-       }
-
-       stage("Trivy Scan") {
-           steps {
-               script {
-	            sh ('docker run -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image ashfaque9x/register-app-pipeline:latest --no-progress --scanners vuln  --exit-code 0 --severity HIGH,CRITICAL --format table')
-               }
-           }
-       }
-
-       stage ('Cleanup Artifacts') {
-           steps {
-               script {
-                    sh "docker rmi ${IMAGE_NAME}:${IMAGE_TAG}"
-                    sh "docker rmi ${IMAGE_NAME}:latest"
-               }
-          }
-       }
-
-       stage("Trigger CD Pipeline") {
+        }
+        stage('Trivy Image Scan') {
+            steps {
+                sh "trivy image  ${DOCKER_IMAGE_NAME}:latest --no-progress --scanners vuln  --exit-code 0 --severity HIGH,CRITICAL --format table"
+            }
+        }
+        stage('Clean Docker Artifact') {
+            steps {
+                sh """
+                    docker rmi ${DOCKER_IMAGE_NAME}:${IMAGE_TAG}
+                    docker rmi ${DOCKER_IMAGE_NAME}:latest
+                """
+            }
+        }
+        stage('Trigger Release Pipeline'){
             steps {
                 script {
-                    sh "curl -v -k --user clouduser:${JENKINS_API_TOKEN} -X POST -H 'cache-control: no-cache' -H 'content-type: application/x-www-form-urlencoded' --data 'IMAGE_TAG=${IMAGE_TAG}' 'ec2-13-232-128-192.ap-south-1.compute.amazonaws.com:8080/job/gitops-register-app-cd/buildWithParameters?token=gitops-token'"
+                    sh "curl -v -k --user shubhamsihasane:${JENKINS_API_TOKEN} -X POST -H 'cache-control: no-cache' -H 'content-type: application/x-www-form-urlencoded' --data 'IMAGE_TAG=${IMAGE_TAG}' 'http://68.183.80.165:8080/job/ReleasePipeline/buildWithParameters?token=gitops-token'"
                 }
             }
-       }
+        }
+
     }
 
-    post {
-       failure {
-             emailext body: '''${SCRIPT, template="groovy-html.template"}''', 
-                      subject: "${env.JOB_NAME} - Build # ${env.BUILD_NUMBER} - Failed", 
-                      mimeType: 'text/html',to: "ashfaque.s510@gmail.com"
-      }
-      success {
-            emailext body: '''${SCRIPT, template="groovy-html.template"}''', 
-                     subject: "${env.JOB_NAME} - Build # ${env.BUILD_NUMBER} - Successful", 
-                     mimeType: 'text/html',to: "ashfaque.s510@gmail.com"
-      }      
-   }
 }
