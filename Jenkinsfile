@@ -65,6 +65,7 @@ pipeline {
                         sh """
                             docker build -t ${DOCKER_IMAGE_NAME}:${IMAGE_TAG} .
                             docker push ${DOCKER_IMAGE_NAME}:${IMAGE_TAG}
+                            docker push ${DOCKER_IMAGE_NAME}:latest
                         """
                     }
                 }
@@ -75,7 +76,7 @@ pipeline {
                 script {
                     withDockerRegistry(credentialsId: 'DockerHub-Credentials') {
                         sh """
-                            trivy image  ${DOCKER_IMAGE_NAME}:${IMAGE_TAG} --no-progress --scanners vuln  --exit-code 0 --severity HIGH,CRITICAL --format table
+                            trivy image  ${DOCKER_IMAGE_NAME}:latest --no-progress --scanners vuln  --exit-code 0 --severity HIGH,CRITICAL --format table
                         """
                     }
                 }
@@ -85,6 +86,7 @@ pipeline {
             steps {
                 sh """
                     docker rmi ${DOCKER_IMAGE_NAME}:${IMAGE_TAG}
+                    docker rmi ${DOCKER_IMAGE_NAME}:latest
                 """
             }
         }
